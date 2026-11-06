@@ -17,6 +17,7 @@ export JIRA_TOKEN=...   # https://id.atlassian.com/manage-profile/security/api-t
 ```
 
 - The ticket titles and planned changes are shown, and you must confirm with `y` before anything is written.
+- The total time logged on the bug ticket (existing worklogs + this one) cannot exceed 10h.
 - The bucket ticket title must start with "Bucket". Use `-f`/`--force` to use another ticket anyway.
 - Tickets: `1234`, `LIS-1234` or a full browse URL.
 - Duration: `1h`, `30m`, `1h30m`, or a number of hours (`1.5`).

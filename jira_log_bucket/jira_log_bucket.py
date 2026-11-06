@@ -15,6 +15,9 @@ Usage:
   The ticket titles and the planned changes are shown first, and you must
   confirm before anything is written to Jira.
 
+  The total time logged on the bug ticket (all users, existing worklogs +
+  this one) cannot exceed 10h. There is no way to bypass this limit.
+
   Example: logging 1h on LIS-123 at 16:30 creates a worklog from 15:30 to
   16:30 on LIS-123 and reduces the bucket's remaining estimate by 1h.
 
@@ -37,6 +40,7 @@ import urllib.request
 BASE_URL = "https://tea-ebook.atlassian.net"
 PROJECT_PREFIX = "LIS"
 TOKEN_URL = "https://id.atlassian.com/manage-profile/security/api-tokens"
+MAX_TICKET_SECONDS = 10 * 3600
 
 
 def die(msg):
@@ -134,7 +138,7 @@ def main():
     spent = fmt_duration(args.duration)
 
     try:
-        bug = jira("GET", f"/rest/api/3/issue/{args.bug}?fields=summary")
+        bug = jira("GET", f"/rest/api/3/issue/{args.bug}?fields=summary,timetracking")
         bucket = jira("GET", f"/rest/api/3/issue/{args.bucket}?fields=summary,timetracking")
     except RuntimeError as e:
         die(str(e))
@@ -145,6 +149,11 @@ def main():
             die(f"{args.bucket} \"{bucket_title}\" does not look like a bucket (title does not start with "
                 "\"Bucket\"); use -f/--force to use it anyway")
         print(f"Warning: {args.bucket} title does not start with \"Bucket\" (forced)", file=sys.stderr)
+
+    already_spent = (bug["fields"].get("timetracking") or {}).get("timeSpentSeconds") or 0
+    if already_spent + args.duration > MAX_TICKET_SECONDS:
+        die(f"{args.bug} already has {fmt_duration(already_spent)} logged; adding {fmt_duration(args.duration)} "
+            f"would exceed the {fmt_duration(MAX_TICKET_SECONDS)} limit per ticket")
 
     tracking = bucket["fields"].get("timetracking") or {}
     remaining = tracking.get("remainingEstimateSeconds")
