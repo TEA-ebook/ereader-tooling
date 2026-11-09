@@ -1,6 +1,18 @@
 # ereader-tooling
 Aims to regroup useful personal tooling to share with e-reader team
 
+## Install
+
+Symlink the tool scripts into a folder in your `PATH`. Each link has the name of its tool folder (for example `poll` runs `poll/poll_ci.py`):
+
+```sh
+./setup.sh           # links in ~/.local/bin
+./setup.sh ~/bin     # links in another folder
+./setup.sh -u        # remove the links
+```
+
+Existing files that are not symlinks are not overwritten. Run the script again after you add a tool.
+
 ## Tools
 
 - [sn_switcher](sn_switcher/) - Switch the device serial number in `~/qboo/private/prod/sn` from a list of named serials.
