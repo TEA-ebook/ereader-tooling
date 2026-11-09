@@ -7,9 +7,9 @@ export JIRA_USER=you@vivlio.com
 export JIRA_TOKEN=...   # https://id.atlassian.com/manage-profile/security/api-tokens
 
 # All three are the same ticket
-./create-branch.sh 1234
-./create-branch.sh LIS-1234
-./create-branch.sh https://tea-ebook.atlassian.net/browse/LIS-1234
+create-branch-from-jira 1234
+create-branch-from-jira LIS-1234
+create-branch-from-jira https://tea-ebook.atlassian.net/browse/LIS-1234
 # -> git checkout -b bugfix/LIS-1234-reader-crashes-on-open
 ```
 
