@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Qt Doc Version Switcher
 // @namespace    https://doc.qt.io/
-// @version      1.1.0
-// @description  Always redirect Qt docs to Qt 6.8 by default, with a floating version switcher (5.9 / 5.15 / 6.8 / latest 6)
+// @version      1.2.0
+// @description  Always redirect Qt docs to Qt 6.8 in English by default, with a floating version switcher (5.9 / 5.15 / 6.8 / latest 6) and language selector
 // @author       Adrien ALBOUY
 // @match        https://doc.qt.io/*
 // @updateURL    https://raw.githubusercontent.com/TEA-ebook/ereader-tooling/main/qt_doc_version_switcher/qt_doc_version_switcher.user.js
@@ -21,6 +21,10 @@
   //  Qt 5.15 →  https://doc.qt.io/archives/qt-5.15/qstring.html
   //  Qt 6.8  →  https://doc.qt.io/qt-6.8/qstring.html
   //  Qt 6    →  https://doc.qt.io/qt-6/qstring.html   (always the latest Qt 6 release)
+  //
+  //  Qt 6 docs also exist in other languages, with a language segment after
+  //  the version slug (archives have English only):
+  //    https://doc.qt.io/qt-6.8/fr/qstring.html
   //
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -49,8 +53,23 @@
     'qt-6.9':      '6',   'qt-6.10': '6', 'qt-6.11': '6', 'qt-6.12': '6',
   };
 
+  // Language segments that doc.qt.io serves. English has no segment.
+  const LANGUAGES = {
+    'en':    'English',
+    'fr':    'Français',
+    'de':    'Deutsch',
+    'es':    'Español',
+    'it':    'Italiano',
+    'pt-br': 'Português (BR)',
+    'ja':    '日本語',
+    'zh':    '中文',
+    'ko':    '한국어',
+  };
+
   const DEFAULT_VERSION = '6.8';
+  const DEFAULT_LANGUAGE = 'en';
   const STORAGE_KEY = 'qt_doc_preferred_version';
+  const LANG_STORAGE_KEY = 'qt_doc_preferred_language';
 
   function getPreferred() {
     const stored = GM_getValue(STORAGE_KEY, DEFAULT_VERSION);
@@ -62,42 +81,60 @@
   }
   function setPreferred(v) { GM_setValue(STORAGE_KEY, v); }
 
+  function getPreferredLang() {
+    const stored = GM_getValue(LANG_STORAGE_KEY, DEFAULT_LANGUAGE);
+    if (Object.prototype.hasOwnProperty.call(LANGUAGES, stored)) return stored;
+    return DEFAULT_LANGUAGE;
+  }
+  function setPreferredLang(l) { GM_setValue(LANG_STORAGE_KEY, l); }
+
   /**
-   * Parse a doc.qt.io pathname into { version, tail } or null if unrecognised.
+   * Parse a doc.qt.io pathname into { version, lang, tail } or null if
+   * unrecognised.
    *
    * Handles:
-   *   /qt-6/qstring.html                  → { version:'6',   tail:'qstring.html' }
-   *   /archives/qt-5.9/qstring.html       → { version:'5.9', tail:'qstring.html' }
-   *   /archives/qt-5.15/qtwidgets/...     → { version:'5.15', tail:'qtwidgets/...' }
+   *   /qt-6/qstring.html                  → { version:'6',   lang:'en', tail:'qstring.html' }
+   *   /qt-6.8/fr/qstring.html             → { version:'6.8', lang:'fr', tail:'qstring.html' }
+   *   /archives/qt-5.9/qstring.html       → { version:'5.9', lang:'en', tail:'qstring.html' }
+   *   /archives/qt-5.15/qtwidgets/...     → { version:'5.15', lang:'en', tail:'qtwidgets/...' }
    */
   function parsePath(pathname) {
     const segs = pathname.split('/').filter(Boolean);
     if (segs.length === 0) return null;
 
-    let slug, tail;
+    let slug, rest;
 
     if (segs[0] === 'archives') {
       slug = segs[1];
-      tail = segs.slice(2).join('/');
+      rest = segs.slice(2);
     } else {
       slug = segs[0];
-      tail = segs.slice(1).join('/');
+      rest = segs.slice(1);
     }
 
     const version = SLUG_TO_VERSION[slug];
     if (!version) return null;
 
-    return { version, tail };
+    let lang = DEFAULT_LANGUAGE;
+    if (rest.length && rest[0] !== DEFAULT_LANGUAGE
+        && Object.prototype.hasOwnProperty.call(LANGUAGES, rest[0])) {
+      lang = rest.shift();
+    }
+
+    return { version, lang, tail: rest.join('/') };
   }
 
   /**
-   * Build a doc.qt.io pathname for a given version key and page tail.
-   *   buildPath('5.9',  'qstring.html') → '/archives/qt-5.9/qstring.html'
-   *   buildPath('6',    'qstring.html') → '/qt-6/qstring.html'
+   * Build a doc.qt.io pathname for a given version key, language and page tail.
+   *   buildPath('5.9', 'fr', 'qstring.html') → '/archives/qt-5.9/qstring.html'
+   *   buildPath('6',   'en', 'qstring.html') → '/qt-6/qstring.html'
+   *   buildPath('6.8', 'fr', 'qstring.html') → '/qt-6.8/fr/qstring.html'
    */
-  function buildPath(versionKey, tail) {
+  function buildPath(versionKey, lang, tail) {
     const { prefix, slug } = VERSIONS[versionKey];
     const parts = prefix ? [prefix, slug] : [slug];
+    // Archived docs are English only.
+    if (!prefix && lang !== DEFAULT_LANGUAGE) parts.push(lang);
     if (tail) parts.push(tail);
     return '/' + parts.join('/');
   }
@@ -111,7 +148,7 @@
 
       if (parsed) {
         const preferred = getPreferred();
-        const canonicalPath = buildPath(preferred, parsed.tail);
+        const canonicalPath = buildPath(preferred, getPreferredLang(), parsed.tail);
 
         if (canonicalPath !== location.pathname) {
           const newUrl = 'https://doc.qt.io'
@@ -127,6 +164,7 @@
 
     function patchSearchLinks() {
         const preferred = getPreferred();
+        const preferredLang = getPreferredLang();
 
         document.querySelectorAll('a[href*="doc.qt.io"]').forEach(a => {
             try {
@@ -136,7 +174,7 @@
                 const parsed = parsePath(url.pathname);
                 if (!parsed) return;
 
-                const canonicalPath = buildPath(preferred, parsed.tail);
+                const canonicalPath = buildPath(preferred, preferredLang, parsed.tail);
                 if (url.pathname === canonicalPath) return; // already correct
 
                 url.pathname = canonicalPath;
@@ -220,6 +258,17 @@
         cursor: default;
       }
       .qtvs-btn.qtvs-active:hover { transform: none; }
+      #qtvs-lang {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 6px;
+        color: #c0c0c0;
+        padding: 4px 6px;
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      #qtvs-lang option { background: #1a1a2e; color: #e0e0e0; }
     `;
 
     const widget = document.createElement('div');
@@ -233,6 +282,11 @@
             </button>
           `).join('')}
         </div>
+        <select id="qtvs-lang" title="Documentation language (Qt 6 only)">
+          ${Object.entries(LANGUAGES).map(([code, name]) => `
+            <option value="${code}"${code === getPreferredLang() ? ' selected' : ''}>${name}</option>
+          `).join('')}
+        </select>
       </div>
     `;
 
@@ -249,10 +303,21 @@
         const parsed = parsePath(location.pathname);
         const tail = parsed ? parsed.tail : '';
         const newUrl = 'https://doc.qt.io'
-          + buildPath(v, tail)
+          + buildPath(v, getPreferredLang(), tail)
           + location.search + location.hash;
         location.assign(newUrl);
       });
+    });
+
+    widget.querySelector('#qtvs-lang').addEventListener('change', e => {
+      const lang = e.target.value;
+      setPreferredLang(lang);
+
+      const parsed = parsePath(location.pathname);
+      if (!parsed) return;
+      const newPath = buildPath(getPreferred(), lang, parsed.tail);
+      if (newPath === location.pathname) return;
+      location.assign('https://doc.qt.io' + newPath + location.search + location.hash);
     });
   }
 
