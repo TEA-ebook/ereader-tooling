@@ -2,23 +2,25 @@
 """Log time on a Jira ticket and take the same amount off a bucket ticket.
 
 Usage:
-  jira_log_bucket.py [-n]
+  jira_log_bucket.py [bug] [bucket] [duration] [-t TRACK] [--at HH:MM] [-m COMMENT] [-n] [-f]
 
+  bug        ticket that receives the worklog (1234, LIS-1234 or a browse URL)
+  bucket     ticket whose remaining estimate is decremented (same formats)
+  duration   time spent: 1h, 30m, 1h30m, or a plain number of hours (1.5)
+  -t         track of the bug ticket: Maintenance, Feature, Service or 1-3
+  --at       end time of the work today (HH:MM or 16h30), default: now
+  -m         worklog comment
   -n         dry run: print what would be done, change nothing
+  -f         allow a bucket ticket whose title does not start with "Bucket"
 
-  The script asks for each value in turn:
-    bug ticket     ticket that receives the worklog (1234, LIS-1234 or a browse URL)
-    track          track of the bug ticket, chosen from the rules shown (empty: keep it)
-    bucket ticket  ticket whose remaining estimate is decremented (same formats)
-    duration       time spent: 1h, 30m, 1h30m, or a plain number of hours (1.5)
-    end time       end time of the work today (HH:MM or 16h30), empty: now
-    comment        worklog comment, empty: no comment
-
-  An invalid answer is asked again. The ticket titles are shown as soon as
-  they are entered, and you must confirm before anything is written to Jira.
+  Each value missing from the command line is asked interactively; an invalid
+  value is asked again. The end time and the comment are asked only if bug,
+  bucket or duration is missing. The track is asked if -t is not given.
+  The ticket titles are shown as soon as they are known, and you must confirm
+  before anything is written to Jira.
 
   If the bucket title does not start with "Bucket", you must confirm that
-  you want to use it anyway.
+  you want to use it anyway (or pass -f).
 
   The total time logged on the bug ticket (all users, existing worklogs +
   this one) cannot exceed 10h. There is no way to bypass this limit.
@@ -109,8 +111,15 @@ def read_line(prompt):
         sys.exit(1)
 
 
-def ask(prompt, parse):
-    """Ask until parse() accepts the answer; parse raises ValueError to ask again."""
+def ask(prompt, parse, initial=None):
+    """Ask until parse() accepts the answer; parse raises ValueError to ask again.
+
+    If initial (a command line value) is given, try it first and only ask if it is invalid."""
+    if initial is not None:
+        try:
+            return parse(initial)
+        except ValueError as e:
+            print(f"  {e}", file=sys.stderr)
     while True:
         try:
             return parse(read_line(prompt))
@@ -158,7 +167,7 @@ def fetch_issue(value, fields="summary,timetracking"):
     return key, issue
 
 
-def ask_bug():
+def ask_bug(initial=None):
     def parse(value):
         key, issue = fetch_issue(value, f"summary,timetracking,{TRACK_FIELD}")
         spent = (issue["fields"].get("timetracking") or {}).get("timeSpentSeconds") or 0
@@ -167,11 +176,28 @@ def ask_bug():
             raise ValueError(f"{key} already has {fmt_duration(spent)} logged, "
                              f"the limit is {fmt_duration(MAX_TICKET_SECONDS)} per ticket")
         return key, issue, spent
-    return ask("Bug ticket: ", parse)
+    return ask("Bug ticket: ", parse, initial)
 
 
-def ask_track(bug_key, current):
+def track_name(value):
+    """Accept a track number (1-3) or name (case-insensitive)."""
+    value = value.strip()
+    if value.isdigit() and 1 <= int(value) <= len(TRACKS):
+        return TRACKS[int(value) - 1][0]
+    for name, _ in TRACKS:
+        if value.lower() == name.lower():
+            return name
+    raise ValueError(f"invalid track: {value!r} (expected 1-{len(TRACKS)} or "
+                     f"{', '.join(name for name, _ in TRACKS)})")
+
+
+def ask_track(bug_key, current, initial=None):
     """Return the chosen track name; the current one is kept on an empty answer."""
+    if initial is not None:
+        try:
+            return track_name(initial)
+        except ValueError as e:
+            print(f"  {e}", file=sys.stderr)
     print(f"Track of {bug_key} (current: {current or 'none'}):")
     width = max(len(name) for name, _ in TRACKS)
     for i, (name, rule) in enumerate(TRACKS, 1):
@@ -183,28 +209,28 @@ def ask_track(bug_key, current):
             if current:
                 return current
             raise ValueError("this ticket has no track, choose one")
-        if value.isdigit() and 1 <= int(value) <= len(TRACKS):
-            return TRACKS[int(value) - 1][0]
-        raise ValueError(f"enter a number from 1 to {len(TRACKS)}")
+        return track_name(value)
     keep = f", empty = keep {current}" if current else ""
     return ask(f"Choice [1-{len(TRACKS)}{keep}]: ", parse)
 
 
-def ask_bucket():
+def ask_bucket(initial=None, force=False):
     def parse(value):
         key, issue = fetch_issue(value)
         title = issue["fields"]["summary"]
         remaining = (issue["fields"].get("timetracking") or {}).get("remainingEstimateSeconds")
         left = "no remaining estimate" if remaining is None else f"{fmt_duration(remaining)} remaining"
         print(f"  {key} \"{title}\" ({left})")
-        if not title.strip().lower().startswith("bucket") and not confirm(
-                "  This title does not start with \"Bucket\". Use it anyway?"):
-            raise ValueError("enter another bucket ticket")
+        if not title.strip().lower().startswith("bucket"):
+            if force:
+                print("  Warning: this title does not start with \"Bucket\" (forced)", file=sys.stderr)
+            elif not confirm("  This title does not start with \"Bucket\". Use it anyway?"):
+                raise ValueError("enter another bucket ticket")
         return key, issue
-    return ask("Bucket ticket: ", parse)
+    return ask("Bucket ticket: ", parse, initial)
 
 
-def ask_duration(bug_key, already_spent):
+def ask_duration(bug_key, already_spent, initial=None):
     def parse(value):
         seconds = duration_seconds(value)
         if already_spent + seconds > MAX_TICKET_SECONDS:
@@ -212,13 +238,21 @@ def ask_duration(bug_key, already_spent):
                              f"{fmt_duration(seconds)} would exceed the {fmt_duration(MAX_TICKET_SECONDS)} "
                              f"limit (at most {fmt_duration(MAX_TICKET_SECONDS - already_spent)} left)")
         return seconds
-    return ask("Duration (1h, 30m, 1h30m, 1.5): ", parse)
+    return ask("Duration (1h, 30m, 1h30m, 1.5): ", parse, initial)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Log time on a ticket and decrement a bucket ticket. All values are asked interactively.")
+        description="Log time on a ticket and decrement a bucket ticket. Missing values are asked interactively.")
+    parser.add_argument("bug", nargs="?", help="ticket to log time on")
+    parser.add_argument("bucket", nargs="?", help="bucket ticket to decrement")
+    parser.add_argument("duration", nargs="?", help="1h, 30m, 1h30m or hours (1.5)")
+    parser.add_argument("-t", "--track", help="track of the bug ticket: Maintenance, Feature, Service or 1-3")
+    parser.add_argument("--at", help="end time of the work today (HH:MM), default: now")
+    parser.add_argument("-m", "--comment", help="worklog comment")
     parser.add_argument("-n", "--dry-run", action="store_true", help="print what would be done, change nothing")
+    parser.add_argument("-f", "--force", action="store_true",
+                        help="allow a bucket whose title does not start with \"Bucket\"")
     args = parser.parse_args()
 
     if not os.environ.get("JIRA_USER") or not os.environ.get("JIRA_TOKEN"):
@@ -230,13 +264,20 @@ def main():
     except RuntimeError as e:
         die(f"Jira authentication failed; check JIRA_USER and JIRA_TOKEN\n{e}\nCreate a new token at {TOKEN_URL}")
 
-    bug_key, bug, already_spent = ask_bug()
+    # With bug, bucket and duration on the command line, --at and -m keep their defaults instead of being asked
+    interactive = None in (args.bug, args.bucket, args.duration)
+
+    bug_key, bug, already_spent = ask_bug(args.bug)
     old_track = (bug["fields"].get(TRACK_FIELD) or {}).get("value")
-    track = ask_track(bug_key, old_track)
-    bucket_key, bucket = ask_bucket()
-    duration = ask_duration(bug_key, already_spent)
-    end = ask("End time of the work today (HH:MM, empty = now): ", end_time)
-    comment = read_line("Comment (empty = none): ").strip()
+    track = ask_track(bug_key, old_track, args.track)
+    bucket_key, bucket = ask_bucket(args.bucket, args.force)
+    duration = ask_duration(bug_key, already_spent, args.duration)
+    at = args.at if args.at is not None or interactive else ""
+    end = ask("End time of the work today (HH:MM, empty = now): ", end_time, at)
+    if args.comment is not None or not interactive:
+        comment = (args.comment or "").strip()
+    else:
+        comment = read_line("Comment (empty = none): ").strip()
 
     start = end - datetime.timedelta(seconds=duration)
     spent = fmt_duration(duration)
