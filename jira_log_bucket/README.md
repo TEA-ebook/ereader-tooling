@@ -6,12 +6,12 @@ Log time on a Jira ticket and take the same amount off the remaining estimate of
 export JIRA_USER=you@vivlio.com
 export JIRA_TOKEN=...   # https://id.atlassian.com/manage-profile/security/api-tokens
 
-./jira_log_bucket.py      # asks for each value
-./jira_log_bucket.py -n   # dry run: show what would be done, change nothing
+jira_log_bucket      # asks for each value
+jira_log_bucket -n   # dry run: show what would be done, change nothing
 
 # Or give the values on the command line (missing values are asked)
-./jira_log_bucket.py LIS-123 LIS-42 1h --at 16:30 -t Maintenance -m "Investigate crash"
-./jira_log_bucket.py 123 42 45m -n
+jira_log_bucket LIS-123 LIS-42 1h --at 16:30 -t Maintenance -m "Investigate crash"
+jira_log_bucket 123 42 45m -n
 ```
 
 Options: `-t`/`--track` (`Maintenance`, `Feature`, `Service` or `1`-`3`), `--at HH:MM`, `-m COMMENT`, `-n` (dry run), `-f` (accept a bucket title that does not start with "Bucket").
