@@ -22,6 +22,9 @@ Usage:
   If the bucket title does not start with "Bucket", you must confirm that
   you want to use it anyway (or pass -f).
 
+  The last bucket used is saved in $XDG_STATE_HOME/jira_log_bucket/last_bucket
+  (default ~/.local/state/...). Press Enter at the bucket question to use it again.
+
   The total time logged on the bug ticket (all users, existing worklogs +
   this one) cannot exceed 10h. There is no way to bypass this limit.
 
@@ -49,6 +52,8 @@ PROJECT_PREFIX = "LIS"
 TOKEN_URL = "https://id.atlassian.com/manage-profile/security/api-tokens"
 MAX_TICKET_SECONDS = 10 * 3600
 TRACK_FIELD = "customfield_11912"
+STATE_FILE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
+                          "jira_log_bucket", "last_bucket")
 TRACKS = [
     ("Maintenance", "Sujet remonté par autres équipes avec sponsor + bugs identifiés en prod (hors test interne)"),
     ("Feature", "Bug identifié sur une phase de test interne"),
@@ -214,8 +219,31 @@ def ask_track(bug_key, current, initial=None):
     return ask(f"Choice [1-{len(TRACKS)}{keep}]: ", parse)
 
 
+def load_last_bucket():
+    try:
+        with open(STATE_FILE) as f:
+            return issue_key(f.read())
+    except (OSError, ValueError):
+        return None
+
+
+def save_last_bucket(key):
+    try:
+        os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+        with open(STATE_FILE, "w") as f:
+            f.write(key + "\n")
+    except OSError as e:
+        print(f"Warning: could not save the last bucket to {STATE_FILE}: {e}", file=sys.stderr)
+
+
 def ask_bucket(initial=None, force=False):
+    last = load_last_bucket()
+
     def parse(value):
+        if not value.strip():
+            if not last:
+                raise ValueError("enter a bucket ticket")
+            value = last
         key, issue = fetch_issue(value)
         title = issue["fields"]["summary"]
         remaining = (issue["fields"].get("timetracking") or {}).get("remainingEstimateSeconds")
@@ -227,7 +255,8 @@ def ask_bucket(initial=None, force=False):
             elif not confirm("  This title does not start with \"Bucket\". Use it anyway?"):
                 raise ValueError("enter another bucket ticket")
         return key, issue
-    return ask("Bucket ticket: ", parse, initial)
+    prompt = f"Bucket ticket (empty = {last}): " if last else "Bucket ticket: "
+    return ask(prompt, parse, initial)
 
 
 def ask_duration(bug_key, already_spent, initial=None):
@@ -342,6 +371,7 @@ def main():
         die(f"worklog {created['id']} was created on {bug_key}, but the bucket was not updated:\n{e}\n"
             f"Reduce the remaining estimate of {bucket_key} by {spent} by hand.")
 
+    save_last_bucket(bucket_key)
     print("Done")
 
 
