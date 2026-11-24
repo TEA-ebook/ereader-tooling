@@ -28,7 +28,7 @@ Track of LIS-123 (current: Feature):
   2. Feature      Bug identifié sur une phase de test interne
   3. Service      Retours et demandes clients (bug), facturé aux clients
 Choice [1-3, empty = keep Feature]: 1
-Bucket ticket: 42
+Bucket ticket (empty = LIS-42): 
   LIS-42 "Bucket bugs November" (12h remaining)
 Duration (1h, 30m, 1h30m, 1.5): 1h
 End time of the work today (HH:MM, empty = now): 16:30
@@ -47,6 +47,7 @@ Done
 - The script shows the track rules and asks for the track of the bug ticket. Press Enter to keep the current track.
 - You must confirm with `y` before the script writes to Jira.
 - The total time logged on the bug ticket (existing worklogs + this one) cannot exceed 10h.
+- The script saves the last bucket ticket in `~/.local/state/jira_log_bucket/last_bucket` (or `$XDG_STATE_HOME/jira_log_bucket/last_bucket`). Press Enter at the bucket question to use it again.
 - If the bucket ticket title does not start with "Bucket", the script asks if you want to use it anyway. Use `-f` to skip this question.
 - If a command line value is invalid, the script shows the error and asks for that value.
 - Tickets: `1234`, `LIS-1234` or a full browse URL.
