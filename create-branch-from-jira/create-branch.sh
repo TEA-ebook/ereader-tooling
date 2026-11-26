@@ -3,6 +3,7 @@
 #   <type>/LIS-<id>-<slugified-summary>
 # The type comes from the ticket labels (feature, bugfix, hotfix, refacto, misc),
 # then from the issue type. If neither matches, you pick it (fzf if available).
+# Then it offers to assign the ticket to you and move it to "In progress".
 #
 # Usage: create-branch.sh <ticket-id>
 #   ticket-id: 1234, LIS-1234, or a full Jira browse URL
@@ -63,7 +64,9 @@ fi
 
 ISSUE_KEY="${PROJECT_PREFIX}-${ID}"
 # Jira answers 404 for unauthenticated issue requests, so check the credentials first
-AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -u "${JIRA_USER}:${JIRA_TOKEN}" "${BASE_URL}/rest/api/3/myself")
+MYSELF=$(curl -s -w "\n%{http_code}" -u "${JIRA_USER}:${JIRA_TOKEN}" "${BASE_URL}/rest/api/3/myself")
+AUTH_STATUS=$(echo "$MYSELF" | tail -n1)
+MY_ACCOUNT_ID=$(echo "$MYSELF" | sed '$d' | python3 -c "import sys,json; print(json.load(sys.stdin)['accountId'])" 2>/dev/null)
 if [ "$AUTH_STATUS" != "200" ]; then
   echo "Error: Jira authentication failed (HTTP ${AUTH_STATUS}); check JIRA_USER and JIRA_TOKEN" >&2
   echo "Create a new token at https://id.atlassian.com/manage-profile/security/api-tokens" >&2
@@ -71,7 +74,7 @@ if [ "$AUTH_STATUS" != "200" ]; then
 fi
 
 RESPONSE=$(curl -s -u "${JIRA_USER}:${JIRA_TOKEN}" \
-  "${BASE_URL}/rest/api/3/issue/${ISSUE_KEY}?fields=summary,labels,issuetype")
+  "${BASE_URL}/rest/api/3/issue/${ISSUE_KEY}?fields=summary,labels,issuetype,assignee,status")
 
 TITLE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['fields']['summary'])" 2>/dev/null)
 
@@ -110,4 +113,55 @@ fi
 
 SLUG=$(echo "$TITLE" | sed 's/([^)]*)//g' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
 BRANCH="${TYPE}/${ISSUE_KEY}-${SLUG}"
-git checkout -b "$BRANCH"
+git checkout -b "$BRANCH" || exit 1
+
+# Offer to take the ticket: assign it to me and move it to "In progress"
+ASSIGNEE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; a=json.load(sys.stdin)['fields'].get('assignee'); print(a['accountId'] if a else '')" 2>/dev/null)
+STATUS=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['fields']['status']['name'])" 2>/dev/null)
+STATUS_LC=$(echo "$STATUS" | tr '[:upper:]' '[:lower:]')
+IN_PROGRESS_NAMES="in progress|en cours"
+
+if [ "$ASSIGNEE_ID" = "$MY_ACCOUNT_ID" ] && echo "$STATUS_LC" | grep -qxE "$IN_PROGRESS_NAMES"; then
+  exit 0
+fi
+[ -r /dev/tty ] || exit 0
+
+read -r -p "Assign ${ISSUE_KEY} to you and mark it as in progress (now: ${STATUS})? [Y/n] " ANSWER </dev/tty
+case "$ANSWER" in
+  ""|[yY]*) ;;
+  *) exit 0 ;;
+esac
+
+if [ "$ASSIGNEE_ID" != "$MY_ACCOUNT_ID" ]; then
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "${JIRA_USER}:${JIRA_TOKEN}" -X PUT \
+    -H "Content-Type: application/json" -d "{\"accountId\":\"${MY_ACCOUNT_ID}\"}" \
+    "${BASE_URL}/rest/api/3/issue/${ISSUE_KEY}/assignee")
+  if [ "$CODE" = "204" ]; then
+    echo "Assigned ${ISSUE_KEY} to you"
+  else
+    echo "Error: could not assign ${ISSUE_KEY} (HTTP ${CODE})" >&2
+  fi
+fi
+
+if ! echo "$STATUS_LC" | grep -qxE "$IN_PROGRESS_NAMES"; then
+  TRANSITION_ID=$(curl -s -u "${JIRA_USER}:${JIRA_TOKEN}" "${BASE_URL}/rest/api/3/issue/${ISSUE_KEY}/transitions" \
+    | python3 -c "
+import sys, json, re
+for t in json.load(sys.stdin).get('transitions', []):
+    if re.fullmatch(r'$IN_PROGRESS_NAMES', t['to']['name'].lower()):
+        print(t['id'])
+        break
+" 2>/dev/null)
+  if [ -z "$TRANSITION_ID" ]; then
+    echo "Error: no transition to \"In progress\" from \"${STATUS}\" for ${ISSUE_KEY}" >&2
+    exit 0
+  fi
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "${JIRA_USER}:${JIRA_TOKEN}" -X POST \
+    -H "Content-Type: application/json" -d "{\"transition\":{\"id\":\"${TRANSITION_ID}\"}}" \
+    "${BASE_URL}/rest/api/3/issue/${ISSUE_KEY}/transitions")
+  if [ "$CODE" = "204" ]; then
+    echo "Moved ${ISSUE_KEY} to in progress"
+  else
+    echo "Error: could not move ${ISSUE_KEY} to in progress (HTTP ${CODE})" >&2
+  fi
+fi
