@@ -5,11 +5,15 @@
 # then from the issue type. If neither matches, you pick it (fzf if available).
 # Then it offers to assign the ticket to you and move it to "In progress".
 #
+# If wtp (https://github.com/satococoa/wtp) is installed, the branch is created
+# in a new worktree instead of being checked out in place. You pick the worktree
+# folder name (default: the issue key), and a new shell opens in that folder.
+#
 # Usage: create-branch.sh <ticket-id>
 #   ticket-id: 1234 (LIS project), any issue key such as BNB-1234 or RDR-1234,
 #              or a full Jira browse URL
 #
-# Requires: curl, python3, git (fzf optional)
+# Requires: curl, python3, git (fzf and wtp optional)
 # Required env vars:
 #   JIRA_USER   your Atlassian account email
 #   JIRA_TOKEN  your Atlassian API token
@@ -128,7 +132,33 @@ if ! git check-ref-format --branch "$BRANCH" &>/dev/null; then
   echo "Error: invalid branch name: $BRANCH" >&2
   exit 1
 fi
-git checkout -b "$BRANCH" || exit 1
+
+WORKTREE=""
+if command -v wtp &>/dev/null; then
+  if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    echo "Error: branch $BRANCH already exists" >&2
+    exit 1
+  fi
+  read -r -e -p "Worktree folder: " -i "$ISSUE_KEY" FOLDER
+  [ -z "$FOLDER" ] && exit 1
+  # wtp names the folder after the branch, so create the worktree on a branch
+  # named after the folder, then rename the branch
+  wtp add -b "$FOLDER" || exit 1
+  WORKTREE=$(wtp cd "$FOLDER") || exit 1
+  git -C "$WORKTREE" branch -m "$BRANCH" || exit 1
+else
+  git checkout -b "$BRANCH" || exit 1
+fi
+
+# Exit, or with wtp open a shell in the new worktree.
+# A script cannot change the directory of its caller, so open a new shell there.
+finish() {
+  if [ -n "$WORKTREE" ]; then
+    echo "Opening a shell in $WORKTREE (exit to go back)"
+    cd "$WORKTREE" && exec "${SHELL:-bash}"
+  fi
+  exit 0
+}
 
 # Offer to take the ticket: assign it to me and move it to "In progress"
 ASSIGNEE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; a=json.load(sys.stdin)['fields'].get('assignee'); print(a['accountId'] if a else '')" 2>/dev/null)
@@ -137,14 +167,14 @@ STATUS_LC=$(echo "$STATUS" | tr '[:upper:]' '[:lower:]')
 IN_PROGRESS_NAMES="in progress|en cours"
 
 if [ "$ASSIGNEE_ID" = "$MY_ACCOUNT_ID" ] && echo "$STATUS_LC" | grep -qxE "$IN_PROGRESS_NAMES"; then
-  exit 0
+  finish
 fi
-[ -r /dev/tty ] || exit 0
+[ -r /dev/tty ] || finish
 
 read -r -p "Assign ${ISSUE_KEY} to you and mark it as in progress (now: ${STATUS})? [Y/n] " ANSWER </dev/tty
 case "$ANSWER" in
   ""|[yY]*) ;;
-  *) exit 0 ;;
+  *) finish ;;
 esac
 
 if [ "$ASSIGNEE_ID" != "$MY_ACCOUNT_ID" ]; then
@@ -169,7 +199,7 @@ for t in json.load(sys.stdin).get('transitions', []):
 " 2>/dev/null)
   if [ -z "$TRANSITION_ID" ]; then
     echo "Error: no transition to \"In progress\" from \"${STATUS}\" for ${ISSUE_KEY}" >&2
-    exit 0
+    finish
   fi
   CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "${JIRA_USER}:${JIRA_TOKEN}" -X POST \
     -H "Content-Type: application/json" -d "{\"transition\":{\"id\":\"${TRANSITION_ID}\"}}" \
@@ -180,3 +210,4 @@ for t in json.load(sys.stdin).get('transitions', []):
     echo "Error: could not move ${ISSUE_KEY} to in progress (HTTP ${CODE})" >&2
   fi
 fi
+finish

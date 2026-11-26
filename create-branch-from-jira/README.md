@@ -16,9 +16,15 @@ create-branch-from-jira https://tea-ebook.atlassian.net/browse/LIS-1234
 create-branch-from-jira BNB-42
 create-branch-from-jira https://tea-ebook.atlassian.net/browse/RDR-7
 # -> git checkout -b feature/RDR-7-new-library-view
+#    or, if wtp is installed: a worktree in the folder RDR-7 on that branch
 ```
 
 - Ticket id: a bare number is a `LIS` ticket. An issue key (`BNB-42`, `RDR-7`) or a browse URL can be of any Jira project. The script does not keep a list of projects.
+
+- If [`wtp`](https://github.com/satococoa/wtp) is installed, the script creates the branch in a new worktree. It does not check out the branch in the current worktree.
+  - The script asks for the worktree folder name, because the branch name can be long. The default is the issue key (`LIS-1234`). The folder is in the `base_dir` of your `.wtp.yml`.
+  - At the end, the script opens a new shell in the worktree. Type `exit` to go back to the previous folder.
+  - Later, use `wtp cd <folder>` to go to the worktree again.
 
 - Branch name: `<type>/<PROJECT>-<id>-<slug>`. The slug is the ticket summary in lower case. Text in parentheses is removed, accents are removed (`é` -> `e`), and other characters are replaced with `-`. The slug is 60 characters maximum. The script checks the final name with `git check-ref-format`.
 - The type is one of `feature`, `bugfix`, `hotfix`, `refacto`, `misc`. The script finds it in this order:
@@ -35,5 +41,5 @@ create-branch-from-jira https://tea-ebook.atlassian.net/browse/RDR-7
 
   3. If there is no match, you select the type with `fzf` (or a numbered menu if `fzf` is not installed).
 - After the branch is created, the script asks if you want to take the ticket (`[Y/n]`). If you answer yes, it assigns the ticket to you and moves it to "En cours" (In progress). The script does not ask if the ticket is already yours and in progress.
-- Requires `curl`, `python3` and `git`. `fzf` is optional.
+- Requires `curl`, `python3` and `git`. `fzf` and `wtp` are optional.
 - The script checks your credentials first, because Jira returns 404 (not 401) for unauthenticated issue requests.
