@@ -17,6 +17,13 @@ Usage:
   A non-numeric argument is treated as a branch name; the latest build for
   that branch is fetched (searches push builds, then PR builds).
 
+  Builds of the branch's head commit are preferred, including builds of
+  any tag pointing at it (e.g. a release pipeline triggered by the tag
+  push; the tag does not need to exist locally). When several pipelines built that commit, the one still
+  running is watched, else the most recently queued. When the origin
+  remote is on GitHub, searches are restricted to that repository, so a
+  same-named branch in another repo of the project is never picked.
+
   While a build is still running, type 'l' + Enter at the "Next poll in..."
   prompt to open the same interactive log picker at any time (independent
   of -l/--logs, which only controls auto-opening on completion).
@@ -236,6 +243,15 @@ def git_repo(repo_path, *args):
     )
 
 
+def github_slug(repo_path):
+    """Return "owner/repo" for a GitHub origin remote, else ""."""
+    result = git_repo(repo_path, "remote", "get-url", "origin")
+    if result.returncode != 0:
+        return ""
+    match = re.search(r"github\.com[:/](.+?)(?:\.git)?/?$", result.stdout.strip())
+    return match.group(1) if match else ""
+
+
 def parse_args(argv):
     repo_path = "."
     show_logs = False
@@ -278,18 +294,36 @@ def resolve_build_id(repo_path, arg):
 
     branch = arg
     def_filter = f"definitions={AZURE_PIPELINE_ID}&" if AZURE_PIPELINE_ID else ""
+    # Branch names are not unique across the project's repositories: without
+    # this filter, another repo's release/x.y.z build would match too.
+    slug = github_slug(repo_path)
+    repo_filter = f"repositoryId={slug}&repositoryType=GitHub&" if slug else ""
+    builds_query = f"{BASE_URL}/build/builds?{def_filter}{repo_filter}"
 
     def match_build(sha):
         builds_url = (
-            f"{BASE_URL}/build/builds?{def_filter}branchName=refs/heads/{branch}"
+            f"{builds_query}branchName=refs/heads/{branch}"
             f"&queryOrder=queueTimeDescending&$top=5&{API_VER}"
         )
-        for build in az_get(builds_url).get("value", []):
-            if build.get("sourceVersion") == sha:
-                return str(build["id"])
+        candidates = [
+            build
+            for build in az_get(builds_url).get("value", [])
+            if build.get("sourceVersion") == sha
+        ]
+
+        # A tag pushed on the head commit (e.g. a release tag) triggers its own
+        # builds, on refs/tags/*. The tag may not be fetched locally, so match
+        # recent builds by commit instead of asking git for tag names.
+        recent_url = f"{builds_query}queryOrder=queueTimeDescending&$top=50&{API_VER}"
+        candidates += [
+            build
+            for build in az_get(recent_url).get("value", [])
+            if build.get("sourceVersion") == sha
+            and build.get("sourceBranch", "").startswith("refs/tags/")
+        ]
 
         pr_url = (
-            f"{BASE_URL}/build/builds?{def_filter}reasonFilter=pullRequest"
+            f"{builds_query}reasonFilter=pullRequest"
             f"&queryOrder=queueTimeDescending&$top=50&{API_VER}"
         )
         for build in az_get(pr_url).get("value", []):
@@ -298,8 +332,17 @@ def resolve_build_id(repo_path, arg):
                 trigger.get("pr.sourceBranch", "").removeprefix("refs/heads/") == branch
                 and trigger.get("pr.sourceSha") == sha
             ):
-                return str(build["id"])
-        return None
+                candidates.append(build)
+
+        if not candidates:
+            return None
+        # One commit can trigger several pipelines (checks on the branch push,
+        # firmware on the release tag): watch the one still running, newest first.
+        best = max(
+            candidates,
+            key=lambda b: (b.get("status") != "completed", b.get("queueTime") or ""),
+        )
+        return str(best["id"])
 
     sha_result = git_repo(repo_path, "rev-parse", branch)
     sha = sha_result.stdout.strip() if sha_result.returncode == 0 else ""
@@ -355,7 +398,7 @@ def resolve_build_id(repo_path, arg):
     if not build_id:
         info(f"Fetching latest push build for branch {BOLD}{branch}{RESET} ...")
         builds_url = (
-            f"{BASE_URL}/build/builds?{def_filter}branchName=refs/heads/{branch}"
+            f"{builds_query}branchName=refs/heads/{branch}"
             f"&queryOrder=queueTimeDescending&$top=1&{API_VER}"
         )
         response = az_get(builds_url)
@@ -366,7 +409,7 @@ def resolve_build_id(repo_path, arg):
     if not build_id:
         info(f"No push build found; searching PR builds for branch {BOLD}{branch}{RESET} ...")
         pr_url = (
-            f"{BASE_URL}/build/builds?{def_filter}reasonFilter=pullRequest"
+            f"{builds_query}reasonFilter=pullRequest"
             f"&queryOrder=queueTimeDescending&$top=50&{API_VER}"
         )
         pr_response = az_get(pr_url)
