@@ -27,6 +27,12 @@ repos:
     hooks:
       - id: shellcheck
 
+  # The style (2-space indent, indented case items) is in .editorconfig.
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.14.1-1
+    hooks:
+      - id: shfmt
+
   # Rules live in ruff.toml, so running ruff by hand gives the same result
   # as the hook.
   - repo: https://github.com/astral-sh/ruff-pre-commit

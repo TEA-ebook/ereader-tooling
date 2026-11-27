@@ -21,8 +21,14 @@ if [ "${1:-}" = "-u" ]; then
   shift
 fi
 case "${1:-}" in
-  -h|--help) sed -n '2,5s/^# \{0,1\}//p' "$0"; exit 0 ;;
-  -*) echo "Error: unknown option: $1" >&2; exit 1 ;;
+  -h | --help)
+    sed -n '2,5s/^# \{0,1\}//p' "$0"
+    exit 0
+    ;;
+  -*)
+    echo "Error: unknown option: $1" >&2
+    exit 1
+    ;;
 esac
 DIR="${1:-$HOME/.local/bin}"
 DIR="${DIR%/}"
@@ -52,6 +58,8 @@ done
 
 case ":$PATH:" in
   *":$DIR:"*) ;;
-  *) echo "Warning: $DIR is not in your PATH; add it to your shell profile:" >&2
-     echo "  export PATH=\"$DIR:\$PATH\"" >&2 ;;
+  *)
+    echo "Warning: $DIR is not in your PATH; add it to your shell profile:" >&2
+    echo "  export PATH=\"$DIR:\$PATH\"" >&2
+    ;;
 esac
