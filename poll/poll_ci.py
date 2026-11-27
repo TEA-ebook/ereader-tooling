@@ -105,9 +105,7 @@ def env_required(name, hint):
 
 AZURE_ORG = env_required("AZURE_ORG", "your Azure DevOps organisation name")
 AZURE_PROJECT = env_required("AZURE_PROJECT", "your Azure DevOps project name")
-AZURE_PAT = env_required(
-    "AZURE_PAT", "a Personal Access Token with Build (read) scope"
-)
+AZURE_PAT = env_required("AZURE_PAT", "a Personal Access Token with Build (read) scope")
 AZURE_PIPELINE_ID = os.environ.get("AZURE_PIPELINE_ID", "")
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "30"))
 LOG_TAIL = int(os.environ.get("LOG_TAIL", "80"))
@@ -128,13 +126,17 @@ def _az_check_status(code):
             "       then export AZURE_PAT=<token>"
         )
     elif code == 403:
-        die("Azure API returned 403 – PAT lacks required permissions (needs Build: read)")
+        die(
+            "Azure API returned 403 – PAT lacks required permissions (needs Build: read)"
+        )
     else:
         die(f"Azure API returned {code} – check AZURE_ORG and AZURE_PROJECT")
 
 
 def az_get(url):
-    resp = requests.get(url, auth=("", AZURE_PAT), headers={"Accept": "application/json"}, timeout=30)
+    resp = requests.get(
+        url, auth=("", AZURE_PAT), headers={"Accept": "application/json"}, timeout=30
+    )
     _az_check_status(resp.status_code)
     return resp.json()
 
@@ -146,7 +148,9 @@ def az_get_text(url):
 
 
 # ── GitHub PR state ───────────────────────────────────────────────────────────
-PR_FIELDS = "number,title,state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,url"
+PR_FIELDS = (
+    "number,title,state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,url"
+)
 
 
 def gh_pr_info(repo_path, ref="", repo_slug=""):
@@ -364,6 +368,7 @@ def resolve_build_id(repo_path, arg):
         )
 
     if wait_for_sha:
+
         def wait_line(extra=""):
             return f"Waiting for a build of commit {BOLD}{sha[:8]}{RESET} on branch {BOLD}{branch}{RESET} ...{extra}"
 
@@ -385,7 +390,11 @@ def resolve_build_id(repo_path, arg):
             time.sleep(DISPLAY_REFRESH_INTERVAL)
             match_elapsed += DISPLAY_REFRESH_INTERVAL
             if live:
-                print(f"\r{CYAN}▸{RESET} {wait_line(f'  ({match_elapsed}s)')}", end="", flush=True)
+                print(
+                    f"\r{CYAN}▸{RESET} {wait_line(f'  ({match_elapsed}s)')}",
+                    end="",
+                    flush=True,
+                )
 
         if live:
             print()
@@ -407,7 +416,9 @@ def resolve_build_id(repo_path, arg):
             build_id = str(values[0]["id"])
 
     if not build_id:
-        info(f"No push build found; searching PR builds for branch {BOLD}{branch}{RESET} ...")
+        info(
+            f"No push build found; searching PR builds for branch {BOLD}{branch}{RESET} ..."
+        )
         pr_url = (
             f"{builds_query}reasonFilter=pullRequest"
             f"&queryOrder=queueTimeDescending&$top=50&{API_VER}"
@@ -420,7 +431,9 @@ def resolve_build_id(repo_path, arg):
                 break
 
     if not build_id:
-        die(f"No build found for branch '{branch}' (set AZURE_PIPELINE_ID to narrow the search)")
+        die(
+            f"No build found for branch '{branch}' (set AZURE_PIPELINE_ID to narrow the search)"
+        )
 
     return build_id
 
@@ -472,7 +485,9 @@ TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+ ", re.MULT
 
 def fetch_log(build_id, log_id):
     try:
-        text = az_get_text(f"{BASE_URL}/build/builds/{build_id}/logs/{log_id}?{API_VER}")
+        text = az_get_text(
+            f"{BASE_URL}/build/builds/{build_id}/logs/{log_id}?{API_VER}"
+        )
     except SystemExit:
         raise
     except Exception:
@@ -513,7 +528,9 @@ def task_entries(timeline):
 
 # ── interactive log browser ───────────────────────────────────────────────────
 def _browse_fzf(build_id, entries):
-    fzf_lines = [f"{log_id}\t{result_icon(result)}  {label}" for log_id, result, label in entries]
+    fzf_lines = [
+        f"{log_id}\t{result_icon(result)}  {label}" for log_id, result, label in entries
+    ]
     fzf_input = "\n".join(fzf_lines) + "\n"
 
     while True:
@@ -566,7 +583,9 @@ def _browse_numbered(build_id, entries):
             print()
             open_in_viewer(build_id, log_ids[int(choice) - 1])
         else:
-            print(f"{YELLOW}  Enter a number between 1 and {len(log_ids)}, or q.{RESET}")
+            print(
+                f"{YELLOW}  Enter a number between 1 and {len(log_ids)}, or q.{RESET}"
+            )
 
 
 def browse_logs(build_id, timeline):
@@ -627,13 +646,17 @@ def main():
         pr_number = trigger.get("pr.number", "")
         pr_sha = trigger.get("pr.sourceSha", "")
         repository = build.get("repository", {})
-        repo_slug = repository.get("id", "") if repository.get("type") == "GitHub" else ""
+        repo_slug = (
+            repository.get("id", "") if repository.get("type") == "GitHub" else ""
+        )
         pr = gh_pr_info(repo_path, pr_number, repo_slug) if pr_number else None
 
         # Everything above is fetched before clearing, and the whole frame is
         # written at once: a slow API call must never leave a half-drawn screen.
         out = []
-        out.append(f"\n{BOLD}Azure DevOps – Build #{build_number}{RESET}  {DIM}(id: {build_id}){RESET}")
+        out.append(
+            f"\n{BOLD}Azure DevOps – Build #{build_number}{RESET}  {DIM}(id: {build_id}){RESET}"
+        )
         out.append(f"  Branch   {branch_name}")
         out.append(f"  By       {requested_by}")
         out.append(f"  Elapsed  {elapsed_fmt}")
@@ -662,13 +685,18 @@ def main():
             )
             for stage in stages:
                 stage_id = stage["id"]
-                out.append(f"\n  {BOLD}{stage.get('name', '')}{RESET}  {status_icon(stage.get('state', ''), stage.get('result') or '-')}")
+                out.append(
+                    f"\n  {BOLD}{stage.get('name', '')}{RESET}  {status_icon(stage.get('state', ''), stage.get('result') or '-')}"
+                )
 
                 jobs = [
                     r
                     for r in records
                     if r.get("type") == "Job"
-                    and (r.get("parentId") == stage_id or parents.get(r.get("parentId")) == stage_id)
+                    and (
+                        r.get("parentId") == stage_id
+                        or parents.get(r.get("parentId")) == stage_id
+                    )
                 ]
                 jobs.sort(key=lambda r: r.get("name", ""))
                 for job in jobs:
@@ -728,7 +756,9 @@ def main():
                 sys.exit(3)
 
         if sys.stdin.isatty() and sys.stdout.isatty():
-            info(f"Next poll in {POLL_INTERVAL}s  (Ctrl-C to abort, 'l' + Enter to view logs)")
+            info(
+                f"Next poll in {POLL_INTERVAL}s  (Ctrl-C to abort, 'l' + Enter to view logs)"
+            )
             ready, _, _ = select.select([sys.stdin], [], [], POLL_INTERVAL)
             if ready and sys.stdin.readline().strip().lower() == "l":
                 browse_logs(build_id, timeline)
