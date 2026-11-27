@@ -19,4 +19,5 @@ Existing files that are not symlinks are not overwritten. Run the script again a
 - [poll](poll/) - Poll an Azure DevOps pipeline build until it completes.
 - [qt_doc_version_switcher](qt_doc_version_switcher/) - Userscript that redirects doc.qt.io pages to your preferred Qt version (6.8 by default) and adds a floating version switcher.
 - [jira_log_bucket](jira_log_bucket/) - Log time on a Jira ticket and decrement the remaining estimate of a bucket ticket.
-- [create-branch-from-jira](create-branch-from-jira/) - Create and check out a git branch named after a Jira ticket (`<type>/LIS-<id>-<summary>`).
+- [create-branch-from-jira](create-branch-from-jira/) - Create and check out a git branch named after a Jira ticket (`<type>/<PROJECT>-<id>-<summary>`).
+- [open-jira-ticket](open-jira-ticket/) - Open a Jira ticket of any project (`1234`, `LIS-1234`, `BNB-42`, browse URL) from the selected text or a prompt. Bind it to a keyboard shortcut.

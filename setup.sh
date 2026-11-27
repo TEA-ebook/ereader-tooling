@@ -12,6 +12,7 @@ SCRIPTS=(
   sn_switcher/sn_switcher.sh
   jira_log_bucket/jira_log_bucket.py
   poll/poll_ci.py
+  open-jira-ticket/open-jira-ticket.sh
 )
 
 UNINSTALL=0
