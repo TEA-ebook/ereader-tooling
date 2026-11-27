@@ -1,12 +1,13 @@
 #!/bin/bash
 # Create and check out a git branch named after a Jira ticket:
-#   <type>/LIS-<id>-<slugified-summary>
+#   <type>/<PROJECT>-<id>-<slugified-summary>
 # The type comes from the ticket labels (feature, bugfix, hotfix, refacto, misc),
 # then from the issue type. If neither matches, you pick it (fzf if available).
 # Then it offers to assign the ticket to you and move it to "In progress".
 #
 # Usage: create-branch.sh <ticket-id>
-#   ticket-id: 1234, LIS-1234, or a full Jira browse URL
+#   ticket-id: 1234 (LIS project), any issue key such as BNB-1234 or RDR-1234,
+#              or a full Jira browse URL
 #
 # Requires: curl, python3, git (fzf optional)
 # Required env vars:
@@ -15,20 +16,21 @@
 #               (https://id.atlassian.com/manage-profile/security/api-tokens)
 
 BASE_URL="https://tea-ebook.atlassian.net"
-PROJECT_PREFIX="LIS"
+DEFAULT_PROJECT="LIS"
 TYPES="feature bugfix hotfix refacto misc"
 
-extract_id() {
-  local input="$1"
-  if echo "$input" | grep -qiE 'atlassian\.net/browse/'"$PROJECT_PREFIX"'-[0-9]+'; then
-    input=$(echo "$input" | grep -oiE "$PROJECT_PREFIX"'-[0-9]+')
-  fi
-  if echo "$input" | grep -qiE '^'"$PROJECT_PREFIX"'-[0-9]+$'; then
-    echo "$input" | grep -oiE '[0-9]+$'
+# Print the issue key (PROJECT-1234) for a ticket id, a key or a browse URL.
+# A bare number is a ticket of the default project.
+extract_key() {
+  local input="$1" key
+  input=$(echo "$input" | sed -E 's|^.*atlassian\.net/browse/||; s|[?#].*$||')
+  key=$(echo "$input" | grep -xiE '[a-z][a-z0-9_]*-[0-9]+')
+  if [ -n "$key" ]; then
+    echo "$key" | tr '[:lower:]' '[:upper:]'
     return 0
   fi
   if echo "$input" | grep -qE '^[0-9]+$'; then
-    echo "$input"
+    echo "${DEFAULT_PROJECT}-${input}"
     return 0
   fi
   return 1
@@ -50,8 +52,8 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-ID=$(extract_id "$1")
-if [ -z "$ID" ]; then
+ISSUE_KEY=$(extract_key "$1")
+if [ -z "$ISSUE_KEY" ]; then
   echo "Error: invalid ticket id: $1" >&2
   exit 1
 fi
@@ -62,7 +64,6 @@ if [ -z "$JIRA_USER" ] || [ -z "$JIRA_TOKEN" ]; then
   exit 1
 fi
 
-ISSUE_KEY="${PROJECT_PREFIX}-${ID}"
 # Jira answers 404 for unauthenticated issue requests, so check the credentials first
 MYSELF=$(curl -s -w "\n%{http_code}" -u "${JIRA_USER}:${JIRA_TOKEN}" "${BASE_URL}/rest/api/3/myself")
 AUTH_STATUS=$(echo "$MYSELF" | tail -n1)

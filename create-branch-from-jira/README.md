@@ -11,9 +11,16 @@ create-branch-from-jira 1234
 create-branch-from-jira LIS-1234
 create-branch-from-jira https://tea-ebook.atlassian.net/browse/LIS-1234
 # -> git checkout -b bugfix/LIS-1234-reader-crashes-on-open
+
+# Tickets of other projects
+create-branch-from-jira BNB-42
+create-branch-from-jira https://tea-ebook.atlassian.net/browse/RDR-7
+# -> git checkout -b feature/RDR-7-new-library-view
 ```
 
-- Branch name: `<type>/LIS-<id>-<slug>`. The slug is the ticket summary in lower case. Text in parentheses is removed, accents are removed (`é` -> `e`), and other characters are replaced with `-`. The slug is 60 characters maximum. The script checks the final name with `git check-ref-format`.
+- Ticket id: a bare number is a `LIS` ticket. An issue key (`BNB-42`, `RDR-7`) or a browse URL can be of any Jira project. The script does not keep a list of projects.
+
+- Branch name: `<type>/<PROJECT>-<id>-<slug>`. The slug is the ticket summary in lower case. Text in parentheses is removed, accents are removed (`é` -> `e`), and other characters are replaced with `-`. The slug is 60 characters maximum. The script checks the final name with `git check-ref-format`.
 - The type is one of `feature`, `bugfix`, `hotfix`, `refacto`, `misc`. The script finds it in this order:
   1. A ticket label with the same name as the type.
   2. The issue type:
