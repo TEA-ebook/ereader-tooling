@@ -14,7 +14,7 @@ When you add a tool, add its script path to the `SCRIPTS` array in `setup.sh` an
 
 ## Code quality
 
-Without CI, pre-commit is the only quality gate (`.pre-commit-config.yaml`): shellcheck for shell scripts, `ruff check` and `ruff format` for Python (rules in `ruff.toml`), and generic file checks (whitespace, shebang, executable bit). Run `pre-commit run --all-files` after a change and fix every finding before you commit. Do not disable a check to make it pass.
+Without CI, pre-commit is the only quality gate (`.pre-commit-config.yaml`): shellcheck and shfmt for shell scripts (shfmt style in `.editorconfig`), `ruff check` and `ruff format` for Python (rules in `ruff.toml`), and generic file checks (whitespace, shebang, executable bit). Run `pre-commit run --all-files` after a change and fix every finding before you commit. Do not disable a check to make it pass.
 
 Most tools call live Jira or Azure DevOps APIs and can change tickets: ask before you run one.
 
@@ -24,4 +24,4 @@ Most tools call live Jira or Azure DevOps APIs and can change tickets: ask befor
 - Optional external tools (`fzf`, `wtp`, `gh`, ...) are detected with `command -v`, and the script has a fallback.
 - Each script has a usage and dependency header comment that matches its README. Update both together.
 - READMEs use short, simple English sentences (Simplified Technical English style), in the present tense and active voice.
-- Commit messages start with the tool name in brackets, for example `[create-branch-from-jira] Support tickets of any Jira project`.
+- Commit messages follow Conventional Commits (`feat`, `fix`, `build`, `chore`, `ci`, `docs`, `perf`, `refactor`, `revert`, `style`, `test`), with the tool folder as scope: `feat(create-branch-from-jira): support tickets of any Jira project`. A commit-msg hook enforces it. Older commits use a `[tool]` prefix; do not copy that style.

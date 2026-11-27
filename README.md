@@ -15,7 +15,7 @@ Existing files that are not symlinks are not overwritten. Run the script again a
 
 ## Contribute
 
-There is no CI. Install the [pre-commit](https://pre-commit.com/) hooks once per clone. They check the shell scripts with shellcheck and the Python scripts with ruff:
+There is no CI. Install the [pre-commit](https://pre-commit.com/) hooks once per clone. They check and format the shell scripts (shellcheck, shfmt) and the Python scripts (ruff). They also check that each commit message follows [Conventional Commits](https://www.conventionalcommits.org/), with the tool folder as scope, for example `fix(poll): open the log picker on failure`:
 
 ```sh
 pre-commit install

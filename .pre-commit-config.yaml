@@ -1,8 +1,13 @@
 # There is no CI on this repository: these hooks are the only quality gate.
 # Install them once per clone:
 #   pre-commit install
+# (default_install_hook_types below also installs the commit-msg hook.)
 # Check every file (for example after a hook update):
 #   pre-commit run --all-files
+
+default_install_hook_types: [pre-commit, commit-msg]
+# Without this, hooks with no stages setting also run on the commit message.
+default_stages: [pre-commit]
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -42,3 +47,12 @@ repos:
         args: [--fix]
       - id: ruff-format
         types_or: [python, pyi]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.5.0
+    hooks:
+      # Conventional Commits, with the tool folder as scope:
+      #   feat(create-branch-from-jira): support tickets of any Jira project
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, build, chore, ci, docs, perf, refactor, revert, style, test]
