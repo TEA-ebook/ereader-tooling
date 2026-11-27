@@ -13,7 +13,7 @@ create-branch-from-jira https://tea-ebook.atlassian.net/browse/LIS-1234
 # -> git checkout -b bugfix/LIS-1234-reader-crashes-on-open
 ```
 
-- Branch name: `<type>/LIS-<id>-<slug>`. The slug is the ticket summary in lower case. Text in parentheses is removed, and other characters are replaced with `-`.
+- Branch name: `<type>/LIS-<id>-<slug>`. The slug is the ticket summary in lower case. Text in parentheses is removed, accents are removed (`é` -> `e`), and other characters are replaced with `-`. The slug is 60 characters maximum. The script checks the final name with `git check-ref-format`.
 - The type is one of `feature`, `bugfix`, `hotfix`, `refacto`, `misc`. The script finds it in this order:
   1. A ticket label with the same name as the type.
   2. The issue type:

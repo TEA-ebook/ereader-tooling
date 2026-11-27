@@ -111,8 +111,22 @@ if [ -z "$TYPE" ]; then
   [ -z "$TYPE" ] && exit 1
 fi
 
-SLUG=$(echo "$TITLE" | sed 's/([^)]*)//g' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
-BRANCH="${TYPE}/${ISSUE_KEY}-${SLUG}"
+# Slugify: drop text in parentheses, transliterate accents (é -> e),
+# keep only [a-z0-9], collapse dashes, cap the length
+SLUG=$(TITLE="$TITLE" python3 -c '
+import os, re, unicodedata
+s = re.sub(r"\([^)]*\)", "", os.environ["TITLE"])
+s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+print(s[:60].rstrip("-"))
+')
+BRANCH="${TYPE}/${ISSUE_KEY}"
+[ -n "$SLUG" ] && BRANCH="${BRANCH}-${SLUG}"
+
+if ! git check-ref-format --branch "$BRANCH" &>/dev/null; then
+  echo "Error: invalid branch name: $BRANCH" >&2
+  exit 1
+fi
 git checkout -b "$BRANCH" || exit 1
 
 # Offer to take the ticket: assign it to me and move it to "In progress"
