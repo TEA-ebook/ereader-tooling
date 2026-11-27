@@ -13,6 +13,15 @@ Symlink the tool scripts into a folder in your `PATH`. Each link has the name of
 
 Existing files that are not symlinks are not overwritten. Run the script again after you add a tool.
 
+## Contribute
+
+There is no CI. Install the [pre-commit](https://pre-commit.com/) hooks once per clone. They check the shell scripts with shellcheck and the Python scripts with ruff:
+
+```sh
+pre-commit install
+pre-commit run --all-files   # check every file
+```
+
 ## Tools
 
 - [sn_switcher](sn_switcher/) - Switch the device serial number in `~/qboo/private/prod/sn` from a list of named serials.

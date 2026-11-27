@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-Personal command-line tools shared with the e-reader team (Vivlio / TEA-ebook). Each tool is a single self-contained script in its own folder, with its own `README.md`. The tools do not share code and the repo has no build, linter, or test suite.
+Personal command-line tools shared with the e-reader team (Vivlio / TEA-ebook). Each tool is a single self-contained script in its own folder, with its own `README.md`. The tools do not share code. The repo has no build, test suite or CI.
 
 ## Install and run
 
@@ -12,7 +12,11 @@ Personal command-line tools shared with the e-reader team (Vivlio / TEA-ebook). 
 
 When you add a tool, add its script path to the `SCRIPTS` array in `setup.sh` and a line to the tool list in the root `README.md`.
 
-To check a script without running it: `bash -n <script>.sh` or `python3 -m py_compile <script>.py`. Most tools call live Jira or Azure DevOps APIs.
+## Code quality
+
+Without CI, pre-commit is the only quality gate (`.pre-commit-config.yaml`): shellcheck for shell scripts, `ruff check` and `ruff format` for Python (rules in `ruff.toml`), and generic file checks (whitespace, shebang, executable bit). Run `pre-commit run --all-files` after a change and fix every finding before you commit. Do not disable a check to make it pass.
+
+Most tools call live Jira or Azure DevOps APIs and can change tickets: ask before you run one.
 
 ## Conventions
 
