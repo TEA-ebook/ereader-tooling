@@ -6,8 +6,8 @@ Open a Jira ticket in the browser. Bind the script to a keyboard shortcut in you
 open-jira-ticket
 ```
 
-1. The script reads the selected text (X11 primary selection, with `xclip`).
-2. If the selection is not a ticket, a dialog asks for one. The script uses `zenity`, then `kdialog`, then `xterm`.
+1. The script reads the clipboard (with `xclip`).
+2. A dialog asks for the ticket. The script uses `zenity`, then `kdialog`, then `xterm`. If the clipboard contains a ticket, the dialog shows its key. Press Enter to open it, or type a different ticket.
 3. The script opens `https://tea-ebook.atlassian.net/browse/<KEY>` in the browser.
 
 Accepted input:
