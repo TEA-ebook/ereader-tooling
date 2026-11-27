@@ -26,3 +26,11 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
+
+  # Rules live in ruff.toml, so running ruff by hand gives the same result
+  # as the hook.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
