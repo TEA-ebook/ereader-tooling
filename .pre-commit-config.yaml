@@ -1,0 +1,23 @@
+# There is no CI on this repository: these hooks are the only quality gate.
+# Install them once per clone:
+#   pre-commit install
+# Check every file (for example after a hook update):
+#   pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        # Two trailing spaces are a hard line break in Markdown.
+        args: ["--markdown-linebreak-ext=md"]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-yaml
+      # The tools are run through the symlinks of setup.sh, so each script
+      # needs a shebang and the executable bit.
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
