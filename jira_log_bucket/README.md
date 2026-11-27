@@ -28,7 +28,7 @@ Track of LIS-123 (current: Feature):
   2. Feature      Bug identifié sur une phase de test interne
   3. Service      Retours et demandes clients (bug), facturé aux clients
 Choice [1-3, empty = keep Feature]: 1
-Bucket ticket (empty = LIS-42): 
+Bucket ticket (empty = LIS-42):
   LIS-42 "Bucket bugs November" (12h remaining)
 Duration (1h, 30m, 1h30m, 1.5): 1h
 End time of the work today (HH:MM, empty = now): 16:30
