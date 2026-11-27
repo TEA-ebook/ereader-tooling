@@ -1,0 +1,58 @@
+# There is no CI on this repository: these hooks are the only quality gate.
+# Install them once per clone:
+#   pre-commit install
+# (default_install_hook_types below also installs the commit-msg hook.)
+# Check every file (for example after a hook update):
+#   pre-commit run --all-files
+
+default_install_hook_types: [pre-commit, commit-msg]
+# Without this, hooks with no stages setting also run on the commit message.
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        # Two trailing spaces are a hard line break in Markdown.
+        args: ["--markdown-linebreak-ext=md"]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-yaml
+      # The tools are run through the symlinks of setup.sh, so each script
+      # needs a shebang and the executable bit.
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+
+  # The style (2-space indent, indented case items) is in .editorconfig.
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.14.1-1
+    hooks:
+      - id: shfmt
+
+  # Rules live in ruff.toml, so running ruff by hand gives the same result
+  # as the hook.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.5.0
+    hooks:
+      # Conventional Commits, with the tool folder as scope:
+      #   feat(create-branch-from-jira): support tickets of any Jira project
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, build, chore, ci, docs, perf, refactor, revert, style, test]

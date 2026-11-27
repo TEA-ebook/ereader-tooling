@@ -103,11 +103,11 @@ done
 if [ -z "$TYPE" ]; then
   ISSUETYPE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['fields']['issuetype']['name'].lower())" 2>/dev/null)
   case "$ISSUETYPE" in
-    bug)                              TYPE="bugfix" ;;
-    story|"new feature"|improvement|epic) TYPE="feature" ;;
-    hotfix)                           TYPE="hotfix" ;;
-    refactor|refactoring)             TYPE="refacto" ;;
-    task|sub-task*|"sub-task-dev")    TYPE="misc" ;;
+    bug) TYPE="bugfix" ;;
+    story | "new feature" | improvement | epic) TYPE="feature" ;;
+    hotfix) TYPE="hotfix" ;;
+    refactor | refactoring) TYPE="refacto" ;;
+    task | sub-task*) TYPE="misc" ;;
   esac
 fi
 
@@ -173,7 +173,7 @@ fi
 
 read -r -p "Assign ${ISSUE_KEY} to you and mark it as in progress (now: ${STATUS})? [Y/n] " ANSWER </dev/tty
 case "$ANSWER" in
-  ""|[yY]*) ;;
+  "" | [yY]*) ;;
   *) finish ;;
 esac
 
@@ -189,8 +189,8 @@ if [ "$ASSIGNEE_ID" != "$MY_ACCOUNT_ID" ]; then
 fi
 
 if ! echo "$STATUS_LC" | grep -qxE "$IN_PROGRESS_NAMES"; then
-  TRANSITION_ID=$(curl -s -u "${JIRA_USER}:${JIRA_TOKEN}" "${BASE_URL}/rest/api/3/issue/${ISSUE_KEY}/transitions" \
-    | python3 -c "
+  TRANSITION_ID=$(curl -s -u "${JIRA_USER}:${JIRA_TOKEN}" "${BASE_URL}/rest/api/3/issue/${ISSUE_KEY}/transitions" |
+    python3 -c "
 import sys, json, re
 for t in json.load(sys.stdin).get('transitions', []):
     if re.fullmatch(r'$IN_PROGRESS_NAMES', t['to']['name'].lower()):

@@ -52,10 +52,16 @@ PROJECT_PREFIX = "LIS"
 TOKEN_URL = "https://id.atlassian.com/manage-profile/security/api-tokens"
 MAX_TICKET_SECONDS = 10 * 3600
 TRACK_FIELD = "customfield_11912"
-STATE_FILE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
-                          "jira_log_bucket", "last_bucket")
+STATE_FILE = os.path.join(
+    os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
+    "jira_log_bucket",
+    "last_bucket",
+)
 TRACKS = [
-    ("Maintenance", "Sujet remonté par autres équipes avec sponsor + bugs identifiés en prod (hors test interne)"),
+    (
+        "Maintenance",
+        "Sujet remonté par autres équipes avec sponsor + bugs identifiés en prod (hors test interne)",
+    ),
     ("Feature", "Bug identifié sur une phase de test interne"),
     ("Service", "Retours et demandes clients (bug), facturé aux clients"),
 ]
@@ -73,7 +79,9 @@ def issue_key(value):
         return f"{PROJECT_PREFIX}-{m.group(1)}"
     if value.isdigit():
         return f"{PROJECT_PREFIX}-{value}"
-    raise ValueError(f"invalid ticket id: {value!r} (expected 1234, {PROJECT_PREFIX}-1234 or a browse URL)")
+    raise ValueError(
+        f"invalid ticket id: {value!r} (expected 1234, {PROJECT_PREFIX}-1234 or a browse URL)"
+    )
 
 
 def duration_seconds(value):
@@ -83,7 +91,9 @@ def duration_seconds(value):
     except ValueError:
         m = re.fullmatch(r"(?:(\d+(?:\.\d+)?)h)?\s*(?:(\d+)m)?", v)
         if not m or not any(m.groups()):
-            raise ValueError(f"invalid duration: {value!r} (expected 1h, 30m, 1h30m or 1.5)") from None
+            raise ValueError(
+                f"invalid duration: {value!r} (expected 1h, 30m, 1h30m or 1.5)"
+            ) from None
         seconds = round(float(m.group(1) or 0) * 3600) + int(m.group(2) or 0) * 60
     if seconds < 60:
         raise ValueError(f"duration must be at least 1m: {value!r}")
@@ -137,7 +147,9 @@ def confirm(prompt):
 
 
 def jira(method, path, body=None):
-    auth = base64.b64encode(f"{os.environ['JIRA_USER']}:{os.environ['JIRA_TOKEN']}".encode()).decode()
+    auth = base64.b64encode(
+        f"{os.environ['JIRA_USER']}:{os.environ['JIRA_TOKEN']}".encode()
+    ).decode()
     req = urllib.request.Request(
         BASE_URL + path,
         method=method,
@@ -156,10 +168,18 @@ def jira(method, path, body=None):
         detail = e.read().decode(errors="replace")
         try:
             d = json.loads(detail)
-            detail = "; ".join(d.get("errorMessages", []) + [f"{k}: {v}" for k, v in d.get("errors", {}).items()]) or detail
+            detail = (
+                "; ".join(
+                    d.get("errorMessages", [])
+                    + [f"{k}: {v}" for k, v in d.get("errors", {}).items()]
+                )
+                or detail
+            )
         except ValueError:
             pass
-        raise RuntimeError(f"{method} {path} failed (HTTP {e.code}): {detail}") from None
+        raise RuntimeError(
+            f"{method} {path} failed (HTTP {e.code}): {detail}"
+        ) from None
 
 
 def fetch_issue(value, fields="summary,timetracking"):
@@ -176,11 +196,14 @@ def ask_bug(initial=None):
     def parse(value):
         key, issue = fetch_issue(value, f"summary,timetracking,{TRACK_FIELD}")
         spent = (issue["fields"].get("timetracking") or {}).get("timeSpentSeconds") or 0
-        print(f"  {key} \"{issue['fields']['summary']}\" ({fmt_duration(spent)} logged)")
+        print(f'  {key} "{issue["fields"]["summary"]}" ({fmt_duration(spent)} logged)')
         if spent + 60 > MAX_TICKET_SECONDS:
-            raise ValueError(f"{key} already has {fmt_duration(spent)} logged, "
-                             f"the limit is {fmt_duration(MAX_TICKET_SECONDS)} per ticket")
+            raise ValueError(
+                f"{key} already has {fmt_duration(spent)} logged, "
+                f"the limit is {fmt_duration(MAX_TICKET_SECONDS)} per ticket"
+            )
         return key, issue, spent
+
     return ask("Bug ticket: ", parse, initial)
 
 
@@ -192,8 +215,10 @@ def track_name(value):
     for name, _ in TRACKS:
         if value.lower() == name.lower():
             return name
-    raise ValueError(f"invalid track: {value!r} (expected 1-{len(TRACKS)} or "
-                     f"{', '.join(name for name, _ in TRACKS)})")
+    raise ValueError(
+        f"invalid track: {value!r} (expected 1-{len(TRACKS)} or "
+        f"{', '.join(name for name, _ in TRACKS)})"
+    )
 
 
 def ask_track(bug_key, current, initial=None):
@@ -215,6 +240,7 @@ def ask_track(bug_key, current, initial=None):
                 return current
             raise ValueError("this ticket has no track, choose one")
         return track_name(value)
+
     keep = f", empty = keep {current}" if current else ""
     return ask(f"Choice [1-{len(TRACKS)}{keep}]: ", parse)
 
@@ -233,7 +259,10 @@ def save_last_bucket(key):
         with open(STATE_FILE, "w") as f:
             f.write(key + "\n")
     except OSError as e:
-        print(f"Warning: could not save the last bucket to {STATE_FILE}: {e}", file=sys.stderr)
+        print(
+            f"Warning: could not save the last bucket to {STATE_FILE}: {e}",
+            file=sys.stderr,
+        )
 
 
 def ask_bucket(initial=None, force=False):
@@ -246,15 +275,27 @@ def ask_bucket(initial=None, force=False):
             value = last
         key, issue = fetch_issue(value)
         title = issue["fields"]["summary"]
-        remaining = (issue["fields"].get("timetracking") or {}).get("remainingEstimateSeconds")
-        left = "no remaining estimate" if remaining is None else f"{fmt_duration(remaining)} remaining"
-        print(f"  {key} \"{title}\" ({left})")
+        remaining = (issue["fields"].get("timetracking") or {}).get(
+            "remainingEstimateSeconds"
+        )
+        left = (
+            "no remaining estimate"
+            if remaining is None
+            else f"{fmt_duration(remaining)} remaining"
+        )
+        print(f'  {key} "{title}" ({left})')
         if not title.strip().lower().startswith("bucket"):
             if force:
-                print("  Warning: this title does not start with \"Bucket\" (forced)", file=sys.stderr)
-            elif not confirm("  This title does not start with \"Bucket\". Use it anyway?"):
+                print(
+                    '  Warning: this title does not start with "Bucket" (forced)',
+                    file=sys.stderr,
+                )
+            elif not confirm(
+                '  This title does not start with "Bucket". Use it anyway?'
+            ):
                 raise ValueError("enter another bucket ticket")
         return key, issue
+
     prompt = f"Bucket ticket (empty = {last}): " if last else "Bucket ticket: "
     return ask(prompt, parse, initial)
 
@@ -263,25 +304,42 @@ def ask_duration(bug_key, already_spent, initial=None):
     def parse(value):
         seconds = duration_seconds(value)
         if already_spent + seconds > MAX_TICKET_SECONDS:
-            raise ValueError(f"{bug_key} already has {fmt_duration(already_spent)} logged; adding "
-                             f"{fmt_duration(seconds)} would exceed the {fmt_duration(MAX_TICKET_SECONDS)} "
-                             f"limit (at most {fmt_duration(MAX_TICKET_SECONDS - already_spent)} left)")
+            raise ValueError(
+                f"{bug_key} already has {fmt_duration(already_spent)} logged; adding "
+                f"{fmt_duration(seconds)} would exceed the {fmt_duration(MAX_TICKET_SECONDS)} "
+                f"limit (at most {fmt_duration(MAX_TICKET_SECONDS - already_spent)} left)"
+            )
         return seconds
+
     return ask("Duration (1h, 30m, 1h30m, 1.5): ", parse, initial)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Log time on a ticket and decrement a bucket ticket. Missing values are asked interactively.")
+        description="Log time on a ticket and decrement a bucket ticket. Missing values are asked interactively."
+    )
     parser.add_argument("bug", nargs="?", help="ticket to log time on")
     parser.add_argument("bucket", nargs="?", help="bucket ticket to decrement")
     parser.add_argument("duration", nargs="?", help="1h, 30m, 1h30m or hours (1.5)")
-    parser.add_argument("-t", "--track", help="track of the bug ticket: Maintenance, Feature, Service or 1-3")
+    parser.add_argument(
+        "-t",
+        "--track",
+        help="track of the bug ticket: Maintenance, Feature, Service or 1-3",
+    )
     parser.add_argument("--at", help="end time of the work today (HH:MM), default: now")
     parser.add_argument("-m", "--comment", help="worklog comment")
-    parser.add_argument("-n", "--dry-run", action="store_true", help="print what would be done, change nothing")
-    parser.add_argument("-f", "--force", action="store_true",
-                        help="allow a bucket whose title does not start with \"Bucket\"")
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="print what would be done, change nothing",
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help='allow a bucket whose title does not start with "Bucket"',
+    )
     args = parser.parse_args()
 
     if not os.environ.get("JIRA_USER") or not os.environ.get("JIRA_TOKEN"):
@@ -291,7 +349,9 @@ def main():
     try:
         jira("GET", "/rest/api/3/myself")
     except RuntimeError as e:
-        die(f"Jira authentication failed; check JIRA_USER and JIRA_TOKEN\n{e}\nCreate a new token at {TOKEN_URL}")
+        die(
+            f"Jira authentication failed; check JIRA_USER and JIRA_TOKEN\n{e}\nCreate a new token at {TOKEN_URL}"
+        )
 
     # With bug, bucket and duration on the command line, --at and -m keep their defaults instead of being asked
     interactive = None in (args.bug, args.bucket, args.duration)
@@ -314,24 +374,34 @@ def main():
     tracking = bucket["fields"].get("timetracking") or {}
     remaining = tracking.get("remainingEstimateSeconds")
     if remaining is None:
-        print(f"Warning: {bucket_key} has no remaining estimate; it will start from 0", file=sys.stderr)
+        print(
+            f"Warning: {bucket_key} has no remaining estimate; it will start from 0",
+            file=sys.stderr,
+        )
         remaining = 0
     new_remaining = remaining - duration
     if new_remaining < 0:
-        print(f"Warning: bucket {bucket_key} is over budget by {fmt_duration(-new_remaining)}; "
-              "remaining estimate set to 0", file=sys.stderr)
+        print(
+            f"Warning: bucket {bucket_key} is over budget by {fmt_duration(-new_remaining)}; "
+            "remaining estimate set to 0",
+            file=sys.stderr,
+        )
 
     print()
-    print(f"Log {spent} on {bug_key} \"{bug['fields']['summary']}\" "
-          f"({start:%Y-%m-%d %H:%M} -> {end:%H:%M})")
+    print(
+        f'Log {spent} on {bug_key} "{bug["fields"]["summary"]}" '
+        f"({start:%Y-%m-%d %H:%M} -> {end:%H:%M})"
+    )
     if comment:
         print(f"Comment: {comment}")
     if track == old_track:
         print(f"Track: {track} (unchanged)")
     else:
         print(f"Track: {old_track or 'none'} -> {track}")
-    print(f"Bucket {bucket_key} \"{bucket['fields']['summary']}\": "
-          f"{fmt_duration(remaining)} -> {fmt_duration(max(0, new_remaining))} remaining")
+    print(
+        f'Bucket {bucket_key} "{bucket["fields"]["summary"]}": '
+        f"{fmt_duration(remaining)} -> {fmt_duration(max(0, new_remaining))} remaining"
+    )
     if args.dry_run:
         print("Dry run: nothing changed")
         return
@@ -341,7 +411,11 @@ def main():
 
     if track != old_track:
         try:
-            jira("PUT", f"/rest/api/3/issue/{bug_key}", {"fields": {TRACK_FIELD: {"value": track}}})
+            jira(
+                "PUT",
+                f"/rest/api/3/issue/{bug_key}",
+                {"fields": {TRACK_FIELD: {"value": track}}},
+            )
         except RuntimeError as e:
             die(f"could not set the track of {bug_key}, nothing changed:\n{e}")
 
@@ -353,12 +427,18 @@ def main():
         worklog["comment"] = {
             "type": "doc",
             "version": 1,
-            "content": [{"type": "paragraph", "content": [{"type": "text", "text": comment}]}],
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": comment}]}
+            ],
         }
     try:
         created = jira("POST", f"/rest/api/3/issue/{bug_key}/worklog", worklog)
     except RuntimeError as e:
-        changed = f" (the track of {bug_key} was already set to {track})" if track != old_track else ""
+        changed = (
+            f" (the track of {bug_key} was already set to {track})"
+            if track != old_track
+            else ""
+        )
         die(f"{e}{changed}")
 
     # Resend the original estimate, otherwise Jira may clear it when only the remaining one is edited
@@ -366,10 +446,16 @@ def main():
     if tracking.get("originalEstimate"):
         edit["originalEstimate"] = tracking["originalEstimate"]
     try:
-        jira("PUT", f"/rest/api/3/issue/{bucket_key}", {"update": {"timetracking": [{"edit": edit}]}})
+        jira(
+            "PUT",
+            f"/rest/api/3/issue/{bucket_key}",
+            {"update": {"timetracking": [{"edit": edit}]}},
+        )
     except RuntimeError as e:
-        die(f"worklog {created['id']} was created on {bug_key}, but the bucket was not updated:\n{e}\n"
-            f"Reduce the remaining estimate of {bucket_key} by {spent} by hand.")
+        die(
+            f"worklog {created['id']} was created on {bug_key}, but the bucket was not updated:\n{e}\n"
+            f"Reduce the remaining estimate of {bucket_key} by {spent} by hand."
+        )
 
     save_last_bucket(bucket_key)
     print("Done")

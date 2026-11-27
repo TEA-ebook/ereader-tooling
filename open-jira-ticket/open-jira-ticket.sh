@@ -1,5 +1,5 @@
 #!/bin/bash
-# Open a Jira ticket in the browser, from the selected text or from a prompt.
+# Open a Jira ticket in the browser, from a dialog prefilled with the clipboard.
 # Bind this script to a keyboard shortcut in your desktop environment.
 #
 # Accepted input:
@@ -7,8 +7,8 @@
 #   BNB-1234, rdr-12         ticket of any project
 #   a Jira browse URL
 #
-# The selected text (X11 primary selection, needs xclip) is used first.
-# If it is not a ticket, a dialog asks for one (zenity, kdialog or xterm).
+# A dialog asks for the ticket (zenity, kdialog or xterm). If the clipboard
+# (needs xclip) contains a ticket, the dialog is prefilled with its key.
 
 BASE_URL="https://tea-ebook.atlassian.net/browse"
 DEFAULT_PROJECT="LIS"
@@ -41,31 +41,30 @@ error() {
   fi
 }
 
-SELECTED=""
+CLIPBOARD=""
 if command -v xclip &>/dev/null; then
-  SELECTED=$(xclip -o -selection primary 2>/dev/null | tr -d '[:space:]')
+  CLIPBOARD=$(xclip -o -selection clipboard 2>/dev/null | tr -d '[:space:]')
 fi
 
-KEY=$(extract_key "$SELECTED")
+# Prefill the dialog only with a valid key, never with random clipboard text.
+DEFAULT=$(extract_key "$CLIPBOARD")
 
+if command -v zenity &>/dev/null; then
+  INPUT=$(zenity --entry --title="Open Jira Ticket" \
+    --text="Enter the ticket (e.g. ${HINT}):" --entry-text="$DEFAULT" --width=350 2>/dev/null) || exit 0
+elif command -v kdialog &>/dev/null; then
+  INPUT=$(kdialog --title "Open Jira Ticket" --inputbox "Enter the ticket (e.g. ${HINT}):" "$DEFAULT" 2>/dev/null) || exit 0
+else
+  INPUT=$(xterm -T "Open Jira Ticket" -e "bash -c 'read -e -i \"${DEFAULT}\" -p \"Ticket (e.g. ${HINT}): \" v && echo \$v'" 2>/dev/null)
+fi
+
+INPUT=$(echo "$INPUT" | tr -d '[:space:]')
+[ -z "$INPUT" ] && exit 0
+KEY=$(extract_key "$INPUT")
 if [ -z "$KEY" ]; then
-  if command -v zenity &>/dev/null; then
-    INPUT=$(zenity --entry --title="Open Jira Ticket" \
-      --text="Enter the ticket (e.g. ${HINT}):" --width=350 2>/dev/null) || exit 0
-  elif command -v kdialog &>/dev/null; then
-    INPUT=$(kdialog --title "Open Jira Ticket" --inputbox "Enter the ticket (e.g. ${HINT}):" 2>/dev/null) || exit 0
-  else
-    INPUT=$(xterm -T "Open Jira Ticket" -e "bash -c 'read -p \"Ticket (e.g. ${HINT}): \" v && echo \$v'" 2>/dev/null)
-  fi
-
-  INPUT=$(echo "$INPUT" | tr -d '[:space:]')
-  [ -z "$INPUT" ] && exit 0
-  KEY=$(extract_key "$INPUT")
-  if [ -z "$KEY" ]; then
-    error "Invalid input: \"$INPUT\"
+  error "Invalid input: \"$INPUT\"
 Expected a ticket like ${HINT}."
-    exit 1
-  fi
+  exit 1
 fi
 
 URL="${BASE_URL}/${KEY}"
