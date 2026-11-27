@@ -107,7 +107,7 @@ if [ -z "$TYPE" ]; then
     story|"new feature"|improvement|epic) TYPE="feature" ;;
     hotfix)                           TYPE="hotfix" ;;
     refactor|refactoring)             TYPE="refacto" ;;
-    task|sub-task*|"sub-task-dev")    TYPE="misc" ;;
+    task|sub-task*)                   TYPE="misc" ;;
   esac
 fi
 
